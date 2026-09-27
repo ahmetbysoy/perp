@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#0c0e14">
+<title>Futures Chart — VWMA + Gaussian SATIŞ1 Platformu</title>
+<script src="https://unpkg.com/lightweight-charts@4.2.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{
+  --bg:#0c0e14; --bg2:#12151e; --panel:#171a24; --panel2:#1e2230;
+  --line:#252a3a; --text:#e8eaf2; --text2:#8b90a6; --text3:#5c6178;
+  --up:#089981; --down:#f23645; --accent:#2962ff; --level:#38bdf8;
+  --header-h:56px;
+}
+body.light-theme {
+  --bg:#ffffff; --bg2:#f8fafc; --panel:#f1f5f9; --panel2:#e2e8f0;
+  --line:#cbd5e1; --text:#0f172a; --text2:#475569; --text3:#94a3b8;
+  --up:#089981; --down:#f23645; --accent:#2563eb; --level:#0f172a;
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+html,body{margin:0;padding:0;height:100%;overflow:hidden;overscroll-behavior:none;background:var(--bg);color:var(--text);font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;user-select:none;transition:background 0.2s, color 0.2s;}
+#app{position:fixed;inset:0;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);}
+#topbar{height:var(--header-h);display:flex;align-items:center;justify-content:space-between;padding:0 12px;border-bottom:1px solid var(--line);background:var(--bg);}
+.left-top{display:flex;align-items:center;gap:8px;}
+.coin-badge{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,#3b82f6,#8b5cf6);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:13px;color:#fff;}
+.sym-info{text-align:left;}
+.sym-name{font-weight:800;font-size:16px;}
+.perp-tag{font-size:9px;font-weight:800;padding:2px 5px;border-radius:4px;background:rgba(41,98,255,.15);color:var(--accent);margin-left:6px;}
+.sym-sub{font-size:10px;color:var(--text2);margin-top:2px;}
+.theme-btn{padding:6px 10px;border-radius:10px;border:1px solid var(--line);background:var(--panel);color:var(--text);font-size:11px;font-weight:bold;cursor:pointer;}
+.price-bar{display:flex;align-items:baseline;justify-content:space-between;padding:6px 14px;border-bottom:1px solid var(--line);background:var(--bg2);}
+.last-price{font-size:26px;font-weight:900;font-family:monospace;}
+.last-price.up{color:var(--up);} .last-price.down{color:var(--down);}
+.price-chg{font-size:12px;font-weight:700;padding:2px 6px;border-radius:6px;font-family:monospace;}
+.price-chg.up{color:var(--up);background:rgba(8,153,129,.15);}
+.price-chg.down{color:var(--down);background:rgba(242,54,69,.15);}
+.tf-bar{display:flex;gap:6px;padding:6px 12px;overflow-x:auto;border-bottom:1px solid var(--line);background:var(--bg);}
+.tf-btn{padding:5px 12px;border-radius:8px;background:var(--panel);border:none;color:var(--text2);font-weight:700;font-size:12px;cursor:pointer;}
+.tf-btn.active{background:var(--accent);color:#fff;}
+#chartWrap{flex:1;position:relative;min-height:0;background:var(--bg2);}
+#chart{position:absolute;inset:0;}
+#vLineCanvas{position:absolute;inset:0;z-index:4;pointer-events:none;}
+.pos-chip{margin:4px 12px;padding:6px 12px;border-radius:10px;font-size:11px;font-weight:700;display:flex;align-items:center;gap:8px;background:var(--panel);border:1px solid var(--line);}
+.ws-dot{width:7px;height:7px;border-radius:50%;display:inline-block;margin-right:5px;background:#10b981;animation:pulse 1.5s infinite;}
+@keyframes pulse{0%{opacity:1;}50%{opacity:0.3;}100%{opacity:1;}}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="topbar">
+    <div class="left-top">
+      <div class="coin-badge" id="coinBadge">BTC</div>
+      <div class="sym-info">
+        <div><span class="sym-name" id="symName">BTCUSDT</span><span class="perp-tag">PERP</span></div>
+        <div class="sym-sub" id="sourceLabel"><span class="ws-dot"></span>Binance Futures · 5M</div>
+      </div>
+    </div>
+    <button class="theme-btn" id="themeBtn" onclick="toggleTheme()">☀️ Aydınlık</button>
+  </div>
+  <div class="price-bar">
+    <div>
+      <span class="last-price up" id="lastPrice">—</span>
+      <span class="price-chg up" id="priceChange">—</span>
+    </div>
+    <div id="countdown" style="font-family:monospace;font-size:12px;color:var(--accent);font-weight:bold;">--:--</div>
+  </div>
+  <div id="posChip" class="pos-chip">
+    <span style="background:var(--down);color:#fff;padding:2px 6px;border-radius:5px;">SATIŞ1</span>
+    <span id="posDetail">Yatay Seviye Işını: Açık Mavi (#38bdf8) / TP: Dinamik Yeşil</span>
+  </div>
+  <div class="tf-bar" id="tfBar">
+    <button class="tf-btn" onclick="setTf('1m')">1M</button>
+    <button class="tf-btn active" onclick="setTf('5m')">5M</button>
+    <button class="tf-btn" onclick="setTf('15m')">15M</button>
+    <button class="tf-btn" onclick="setTf('1h')">1H</button>
+  </div>
+  <div id="chartWrap">
+    <div id="chart"></div>
+    <canvas id="vLineCanvas"></canvas>
+  </div>
+</div>
+<script>
+let isLight = false;
+const chartEl = document.getElementById('chart');
+const canvasEl = document.getElementById('vLineCanvas');
+const chart = LightweightCharts.createChart(chartEl, {
+  layout: { background: { type: 'solid', color: '#12151e' }, textColor: '#8b90a6', fontSize: 11 },
+  grid: { vertLines: { color: 'rgba(255,255,255,0.04)' }, horzLines: { color: 'rgba(255,255,255,0.04)' } },
+  timeScale: { borderColor: '#252a3a', timeVisible: true }
+});
+const candleSeries = chart.addCandlestickSeries({ upColor: '#089981', downColor: '#f23645', borderVisible: true });
+const gSeries = chart.addLineSeries({ color: '#4caf50', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+const vSeries = chart.addLineSeries({ color: '#ff9800', lineWidth: 2, priceLineVisible: false, lastValueVisible: false });
+
+function toggleTheme() {
+  isLight = !isLight;
+  document.body.className = isLight ? 'light-theme' : '';
+  document.getElementById('themeBtn').textContent = isLight ? '🌙 Koyu' : '☀️ Aydınlık';
+  chart.applyOptions({
+    layout: { background: { type: 'solid', color: isLight ? '#ffffff' : '#12151e' }, textColor: isLight ? '#334155' : '#8b90a6' },
+    grid: { vertLines: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.04)' }, horzLines: { color: isLight ? 'rgba(0,0,0,0.05)' : 'rgba(255,255,255,0.04)' } },
+    timeScale: { borderColor: isLight ? '#cbd5e1' : '#252a3a' }
+  });
+}
+
+window.addEventListener('resize', () => {
+  chart.applyOptions({ width: chartEl.clientWidth, height: chartEl.clientHeight });
+  canvasEl.width = chartEl.clientWidth; canvasEl.height = chartEl.clientHeight;
+});
+</script>
+</body>
+</html>

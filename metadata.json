@@ -1,0 +1,6 @@
+{
+  "name": "Futures Trader & VWMA-Gaussian SATIŞ1 Strateji Platformu",
+  "description": "Binance Futures ve OKX gerçek zamanlı verileriyle çalışan, Pine Script VWMA + Gaussian SATIŞ1 stratejisi, dinamik TP ve backtest motorlu profesyonel mobil grafik platformu.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
