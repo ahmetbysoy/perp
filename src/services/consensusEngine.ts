@@ -72,12 +72,13 @@ export class ConsensusEngine {
 
     // 2. Price Position relative to Gaussian
     if (curG != null) {
+      const gStr = curG.toLocaleString('tr-TR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
       if (curClose >= curG) {
         bullishPoints += 1;
-        reasons.push(`Fiyat Gaussian (${curG.toFixed(1)}) seviyesi üzerinde tutunuyor`);
+        reasons.push(`Fiyat Gaussian (${gStr}) seviyesi üzerinde tutunuyor`);
       } else {
         bearishPoints += 1;
-        reasons.push(`Fiyat Gaussian (${curG.toFixed(1)}) direncinin altında`);
+        reasons.push(`Fiyat Gaussian (${gStr}) direncinin altında`);
       }
     }
 

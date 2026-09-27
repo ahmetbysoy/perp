@@ -135,6 +135,14 @@ export interface AppSettings {
   priceLineVisible: boolean;
   priceLabelVisible: boolean;
   barSpacing: number;
+
+  // Layer 2: Raw Flow & Heatmap & Pattern Pool settings
+  showHeatmap: boolean;
+  showFlowMini: boolean;
+  rawConfirmEnabled: boolean;
+  patternWinThreshold: number;
+  muteWeakPatterns: boolean;
+  whaleThresholdUsd: number;
 }
 
 export interface ConnectionStatus {
@@ -146,7 +154,44 @@ export interface ConnectionStatus {
   isFallback: boolean;
 }
 
-export type MobileTab = 'chart' | 'walls' | 'consensus' | 'mev';
+export type MobileTab = 'chart' | 'signal' | 'pool' | 'walls' | 'consensus' | 'mev';
+
+export interface RawFlowMetrics {
+  cvd60: number; // net CVD in last 60s
+  cvd60Buy: number;
+  cvd60Sell: number;
+  obi: number; // Order Book Imbalance (-100 to +100%)
+  bidDepthUsd: number;
+  askDepthUsd: number;
+  openInterest: number;
+  oiChangePct: number;
+  fundingRate: number; // e.g. +0.0050%
+  liq60LongUsd: number;
+  liq60ShortUsd: number;
+  spread: number;
+  spreadPct: number;
+  whaleMode: string;
+  whaleCount: number;
+  rawScore: number; // 0 - 100
+  verdict: 'CONFIRM' | 'VETO' | 'WAIT';
+  reasons: string[];
+}
+
+export interface PatternRecord {
+  key: string;
+  name: string;
+  timeframe: '1m' | '5m';
+  count: number;
+  wins: number;
+  losses: number;
+  wilsonScore: number; // 0 - 100%
+  ret10: number; // mean return % at bar 10
+  mfe: number; // Maximum Favorable Excursion %
+  mae: number; // Maximum Adverse Excursion %
+  status: 'good' | 'bad' | 'wait';
+  lastTriggered?: number;
+  recentReturns?: number[];
+}
 
 export type OrderbookLevel = [price: number, qty: number];
 
@@ -215,4 +260,31 @@ export interface TradeSetup {
   riskRewardRatio: string;
   expectedPnlPct: number;
 }
+
+export type ScreenerSignalType =
+  | 'SHORT_ACTIVE'
+  | 'V1_PENDING'
+  | 'TP_HIT'
+  | 'DYNAMIC_TP_NEAR'
+  | 'BULLISH'
+  | 'NEUTRAL';
+
+export interface ScreenerItem {
+  symbol: string;
+  base: string;
+  price: number;
+  changePct: number;
+  quoteVol24h: number; // in USD
+  high24h: number;
+  low24h: number;
+  gaussianPrice: number | null;
+  vwmaPrice: number | null;
+  distToGaussianPct: number | null;
+  signalType: ScreenerSignalType;
+  signalLabel: string;
+  confidence: number; // 0-100
+  chain?: StrategyChain;
+  lastUpdated: number;
+}
+
 

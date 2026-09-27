@@ -40,9 +40,9 @@ export const PriceBar: React.FC<PriceBarProps> = ({
       }`}
     >
       {/* Price & Change */}
-      <div className="flex items-baseline gap-2.5 min-w-0">
+      <div className="flex items-baseline gap-1.5 sm:gap-2.5 min-w-0 truncate">
         <span
-          className={`font-mono text-2xl sm:text-3xl font-black tracking-tight leading-none ${
+          className={`font-mono text-xl sm:text-3xl font-black tracking-tight leading-none truncate ${
             isUp ? (isLight ? 'text-emerald-600' : 'text-emerald-400') : (isLight ? 'text-rose-600' : 'text-rose-400')
           }`}
         >
@@ -50,7 +50,7 @@ export const PriceBar: React.FC<PriceBarProps> = ({
         </span>
 
         <span
-          className={`font-mono text-xs font-bold px-2 py-0.5 rounded-lg leading-tight ${
+          className={`font-mono text-[11px] sm:text-xs font-bold px-1.5 sm:px-2 py-0.5 rounded-lg leading-tight shrink-0 ${
             isUp
               ? isLight
                 ? 'text-emerald-700 bg-emerald-100 border border-emerald-200'
@@ -65,7 +65,7 @@ export const PriceBar: React.FC<PriceBarProps> = ({
       </div>
 
       {/* Right Controls: Drawing Mode Chips & Bar Countdown */}
-      <div className="flex items-center gap-1.5 sm:gap-2">
+      <div className="flex items-center gap-1 sm:gap-2 shrink-0">
         {/* Click to add level quick button */}
         <button
           onClick={onToggleAddLevel}

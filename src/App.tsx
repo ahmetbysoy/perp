@@ -12,7 +12,9 @@ import {
   OrderbookData,
   MevAnalytics,
   MultiTimeframeConsensus,
-  TradeSetup
+  TradeSetup,
+  RawFlowMetrics,
+  PatternRecord
 } from './types';
 import {
   BinanceProvider,
@@ -27,11 +29,16 @@ import { detectStrategy } from './services/strategy';
 import { sound } from './services/sound';
 import { orderbookService } from './services/orderbookService';
 import { consensusEngine } from './services/consensusEngine';
+import { rawFlowService } from './services/rawFlowService';
+import { patternPoolService } from './services/patternPoolService';
 import { ChartContainer } from './components/ChartContainer';
 import { TopBar } from './components/TopBar';
 import { PriceBar } from './components/PriceBar';
 import { TimeframeBar } from './components/TimeframeBar';
 import { PositionChip } from './components/PositionChip';
+import { FlowMiniOverlay } from './components/FlowMiniOverlay';
+import { DecisionSignalCard } from './components/DecisionSignalCard';
+import { PatternPoolPanel } from './components/PatternPoolPanel';
 import { TradeSetupHero } from './components/TradeSetupHero';
 import { LiquidityWallsPanel } from './components/LiquidityWallsPanel';
 import { ConsensusPanel } from './components/ConsensusPanel';
@@ -41,6 +48,7 @@ import { BacktestModal } from './components/BacktestModal';
 import { PositionCalculatorModal } from './components/PositionCalculatorModal';
 import { CoinSelectorSheet } from './components/CoinSelectorSheet';
 import { SettingsSheet } from './components/SettingsSheet';
+import { ScreenerModal } from './components/ScreenerModal';
 
 const DEFAULT_SETTINGS: AppSettings = {
   providerPref: 'binance',
@@ -93,7 +101,14 @@ const DEFAULT_SETTINGS: AppSettings = {
   countdownVisible: true,
   priceLineVisible: true,
   priceLabelVisible: true,
-  barSpacing: 8
+  barSpacing: 8,
+
+  showHeatmap: true,
+  showFlowMini: true,
+  rawConfirmEnabled: true,
+  patternWinThreshold: 0.15,
+  muteWeakPatterns: false,
+  whaleThresholdUsd: 250000
 };
 
 export default function App() {
@@ -127,6 +142,8 @@ export default function App() {
   const [orderbook, setOrderbook] = useState<OrderbookData | null>(null);
   const [consensus, setConsensus] = useState<MultiTimeframeConsensus | null>(null);
   const [tradeSetup, setTradeSetup] = useState<TradeSetup | null>(null);
+  const [rawFlowMetrics, setRawFlowMetrics] = useState<RawFlowMetrics | null>(null);
+  const [bestPattern, setBestPattern] = useState<PatternRecord | null>(null);
 
   const [bars, setBars] = useState<Candle[]>([]);
   const [ticker, setTicker] = useState<TickerData | null>(null);
@@ -158,6 +175,7 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isBacktestOpen, setIsBacktestOpen] = useState(false);
   const [isCalcOpen, setIsCalcOpen] = useState(false);
+  const [isScreenerOpen, setIsScreenerOpen] = useState(false);
 
   // Countdown timer string
   const [countdown, setCountdown] = useState<string>('');
@@ -199,13 +217,17 @@ export default function App() {
 
   const scheduleTick = useCallback((price: number, qty: number) => {
     tickQueueRef.current = { price, qty };
+    const lastP = bars.length ? bars[bars.length - 1].close : price;
+    const isSellerAggressive = price < lastP;
+    rawFlowService.pushTrade(price, qty, isSellerAggressive);
+
     if (tickRafRef.current == null) {
       tickRafRef.current = requestAnimationFrame(() => {
         tickRafRef.current = null;
         flushTick();
       });
     }
-  }, [flushTick]);
+  }, [bars, flushTick]);
 
   // 250ms backup flush to keep trades ticking even when background tab throttles rAF
   useEffect(() => {
@@ -518,6 +540,33 @@ export default function App() {
     };
   }, [provider, market, currentGaussian]);
 
+  // Synchronize Raw Order Flow Metrics (CVD, OBI, OI, Liq, Funding)
+  useEffect(() => {
+    rawFlowService.setSymbol(symbolKey);
+    const syncFlow = () => {
+      const flow = rawFlowService.computeMetrics(orderbook, activeChain, lastClose);
+      setRawFlowMetrics(flow);
+    };
+
+    syncFlow();
+    const intervalTimer = window.setInterval(syncFlow, 1000);
+    return () => window.clearInterval(intervalTimer);
+  }, [symbolKey, orderbook, activeChain, lastClose]);
+
+  // Analyze historical and live candles for Pattern Pool Engine (Wilson scoring)
+  useEffect(() => {
+    if (bars.length >= 25) {
+      patternPoolService.analyzeCandles(
+        bars,
+        interval === '1m' ? '1m' : '5m',
+        gaussianData,
+        vwmaData
+      );
+      const all = patternPoolService.getAllPatterns();
+      if (all.length) setBestPattern(all[0]);
+    }
+  }, [bars, interval, gaussianData, vwmaData]);
+
   // Manual Drawings Actions
   const handleAddManualLevel = useCallback(
     (price: number, time?: number) => {
@@ -604,6 +653,7 @@ export default function App() {
         onOpenSettings={() => setIsSettingsOpen(true)}
         onOpenBacktest={() => setIsBacktestOpen(true)}
         onOpenCalculator={() => setIsCalcOpen(true)}
+        onOpenScreener={() => setIsScreenerOpen(true)}
         onToggleSound={() => setSettings((s) => ({ ...s, soundEnabled: !s.soundEnabled }))}
         onToggleTheme={handleToggleTheme}
       />
@@ -662,6 +712,11 @@ export default function App() {
                 isLight ? 'bg-white border-slate-200' : 'bg-[#0e111a] border-white/5'
               }`}
             >
+              {/* Floating Live Flow Mini Panel (Stage 4 feature) */}
+              {settings.showFlowMini && (
+                <FlowMiniOverlay metrics={rawFlowMetrics} theme={settings.theme} />
+              )}
+
               {isLoading && (
                 <div
                   className={`absolute inset-0 z-40 backdrop-blur-sm flex flex-col items-center justify-center gap-3 ${
@@ -686,6 +741,7 @@ export default function App() {
                 strategyChains={strategyChains}
                 manualLevels={manualLevels}
                 manualVLines={manualVLines}
+                orderbook={orderbook}
                 settings={settings}
                 precision={market?.precision || 2}
                 onAddManualLevel={handleAddManualLevel}
@@ -697,8 +753,8 @@ export default function App() {
           </div>
         )}
 
-        {activeTab === 'walls' && (
-          <div className="flex-1 overflow-y-auto">
+        {activeTab === 'signal' && (
+          <div className="flex-1 overflow-y-auto pb-24 overscroll-contain">
             <TradeSetupHero
               setup={tradeSetup}
               consensus={consensus}
@@ -707,6 +763,25 @@ export default function App() {
               locale={settings.priceLocale}
               theme={settings.theme}
             />
+            <DecisionSignalCard
+              metrics={rawFlowMetrics}
+              activeChain={activeChain}
+              bestPattern={bestPattern}
+              precision={market?.precision || 2}
+              locale={settings.priceLocale}
+              theme={settings.theme}
+            />
+          </div>
+        )}
+
+        {activeTab === 'pool' && (
+          <div className="flex-1 overflow-y-auto pb-24 overscroll-contain">
+            <PatternPoolPanel theme={settings.theme} />
+          </div>
+        )}
+
+        {activeTab === 'walls' && (
+          <div className="flex-1 overflow-y-auto pb-24 overscroll-contain">
             <LiquidityWallsPanel
               orderbook={orderbook}
               precision={market?.precision || 2}
@@ -717,29 +792,13 @@ export default function App() {
         )}
 
         {activeTab === 'consensus' && (
-          <div className="flex-1 overflow-y-auto">
-            <TradeSetupHero
-              setup={tradeSetup}
-              consensus={consensus}
-              currentPrice={lastClose}
-              precision={market?.precision || 2}
-              locale={settings.priceLocale}
-              theme={settings.theme}
-            />
+          <div className="flex-1 overflow-y-auto pb-24 overscroll-contain">
             <ConsensusPanel consensus={consensus} theme={settings.theme} />
           </div>
         )}
 
         {activeTab === 'mev' && (
-          <div className="flex-1 overflow-y-auto">
-            <TradeSetupHero
-              setup={tradeSetup}
-              consensus={consensus}
-              currentPrice={lastClose}
-              precision={market?.precision || 2}
-              locale={settings.priceLocale}
-              theme={settings.theme}
-            />
+          <div className="flex-1 overflow-y-auto pb-24 overscroll-contain">
             <MevRadarPanel
               mev={mevAnalytics}
               precision={market?.precision || 2}
@@ -755,6 +814,7 @@ export default function App() {
         activeTab={activeTab}
         theme={settings.theme}
         onSelectTab={setActiveTab}
+        rawFlowScore={rawFlowMetrics?.rawScore}
         consensusScore={consensus?.overallScore}
         mevRiskScore={mevAnalytics?.frontrunRiskScore}
       />
@@ -770,6 +830,7 @@ export default function App() {
         locale={settings.priceLocale}
         theme={settings.theme}
         onSelectCoin={(k) => setSymbolKey(k)}
+        onOpenScreener={() => setIsScreenerOpen(true)}
       />
 
       {/* Settings Sheet */}
@@ -809,6 +870,20 @@ export default function App() {
         precision={market?.precision || 2}
         locale={settings.priceLocale}
         theme={settings.theme}
+      />
+
+      {/* Live Screener / Signal Radar Modal */}
+      <ScreenerModal
+        isOpen={isScreenerOpen}
+        onClose={() => setIsScreenerOpen(false)}
+        currentInterval={interval}
+        currentSymbol={symbolKey}
+        theme={settings.theme}
+        locale={settings.priceLocale}
+        onSelectCoin={(symbol) => {
+          setSymbolKey(symbol);
+          showToast(`${symbol} grafiğine geçildi!`);
+        }}
       />
 
       {/* Floating Toast Notification */}

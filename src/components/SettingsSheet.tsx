@@ -620,6 +620,91 @@ export const SettingsSheet: React.FC<SettingsSheetProps> = ({
             </div>
           </div>
 
+          {/* Katman 2: Raw Order Flow & Görsel Tahta */}
+          <div className="space-y-3">
+            <h4
+              className={`text-[10px] font-black tracking-wider uppercase ${
+                isLight ? 'text-slate-500' : 'text-slate-400'
+              }`}
+            >
+              Katman 2: Order Flow & Görsel Tahta
+            </h4>
+
+            <div
+              className={`p-3.5 rounded-2xl border space-y-2.5 ${
+                isLight ? 'bg-slate-50 border-slate-200' : 'bg-white/[0.03] border-white/5'
+              }`}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={`font-bold block ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                    Likidite Isı Haritası (Heatmap & DOM)
+                  </span>
+                  <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Grafik üzerinde derinlik yoğunluğu ve sağ DOM merdiveni
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.showHeatmap}
+                  onChange={(e) => onUpdateSettings({ showHeatmap: e.target.checked })}
+                  className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={`font-bold block ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                    Flow Mini Panel
+                  </span>
+                  <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Grafik sağ üstünde CVD60, OBI, OIΔ ve Funding çipi
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.showFlowMini}
+                  onChange={(e) => onUpdateSettings({ showFlowMini: e.target.checked })}
+                  className="w-5 h-5 accent-blue-600 rounded cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={`font-bold block ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                    Raw Flow Onay & Veto
+                  </span>
+                  <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Sinyalleri CVD, OBI ve OI mikroyapısıyla teyit et
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.rawConfirmEnabled}
+                  onChange={(e) => onUpdateSettings({ rawConfirmEnabled: e.target.checked })}
+                  className="w-5 h-5 accent-emerald-500 rounded cursor-pointer"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className={`font-bold block ${isLight ? 'text-slate-800' : 'text-slate-200'}`}>
+                    Zayıf Desenleri Sustur (Mute Weak)
+                  </span>
+                  <span className={`text-[10px] ${isLight ? 'text-slate-500' : 'text-slate-400'}`}>
+                    Tarihsel Wilson skoru düşük sinyalleri filtrele
+                  </span>
+                </div>
+                <input
+                  type="checkbox"
+                  checked={settings.muteWeakPatterns}
+                  onChange={(e) => onUpdateSettings({ muteWeakPatterns: e.target.checked })}
+                  className="w-5 h-5 accent-amber-500 rounded cursor-pointer"
+                />
+              </div>
+            </div>
+          </div>
+
           {/* 5. GÖRÜNÜM & SES AYARLARI */}
           <div className="space-y-3">
             <h4

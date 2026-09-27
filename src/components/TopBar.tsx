@@ -1,6 +1,6 @@
 import React from 'react';
 import { MarketInfo, ConnectionStatus } from '../types';
-import { Settings, BarChart2, Calculator, Volume2, VolumeX, ChevronDown, Sun, Moon } from 'lucide-react';
+import { Settings, BarChart2, Calculator, Volume2, VolumeX, ChevronDown, Sun, Moon, Radar } from 'lucide-react';
 
 interface TopBarProps {
   market: MarketInfo | null;
@@ -12,6 +12,7 @@ interface TopBarProps {
   onOpenSettings: () => void;
   onOpenBacktest: () => void;
   onOpenCalculator: () => void;
+  onOpenScreener: () => void;
   onToggleSound: () => void;
   onToggleTheme: () => void;
 }
@@ -26,6 +27,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenSettings,
   onOpenBacktest,
   onOpenCalculator,
+  onOpenScreener,
   onToggleSound,
   onToggleTheme
 }) => {
@@ -114,6 +116,20 @@ export const TopBar: React.FC<TopBarProps> = ({
 
       {/* Action Buttons */}
       <div className="flex items-center gap-1 sm:gap-1.5">
+        {/* Live Screener / Signal Radar Button */}
+        <button
+          onClick={onOpenScreener}
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-500/10 hover:bg-purple-500/20 active:scale-95 border border-purple-500/20 text-purple-400 transition"
+          title="Canlı Sinyal Radarı (Top 15 Parite)"
+        >
+          <Radar size={15} className="animate-spin-slow text-purple-400" />
+          <span className="text-[11px] font-bold hidden xs:inline">Radar</span>
+          <span className="text-[9px] font-extrabold px-1.5 py-0.2 rounded bg-purple-500 text-white shadow-sm flex items-center gap-1">
+            <span className="w-1 h-1 rounded-full bg-white animate-ping" />
+            CANLI
+          </span>
+        </button>
+
         {/* Strategy / Backtest Button */}
         <button
           onClick={onOpenBacktest}

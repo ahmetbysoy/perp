@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import { MarketInfo } from '../types';
 import { fmtPrice, fmtPct } from '../services/dataFeed';
-import { X, Search } from 'lucide-react';
+import { X, Search, Radar } from 'lucide-react';
 
 interface CoinSelectorSheetProps {
   isOpen: boolean;
@@ -13,6 +13,7 @@ interface CoinSelectorSheetProps {
   locale: string;
   theme?: 'light' | 'dark';
   onSelectCoin: (key: string) => void;
+  onOpenScreener?: () => void;
 }
 
 export const CoinSelectorSheet: React.FC<CoinSelectorSheetProps> = ({
@@ -24,7 +25,8 @@ export const CoinSelectorSheet: React.FC<CoinSelectorSheetProps> = ({
   providerName,
   locale,
   theme = 'dark',
-  onSelectCoin
+  onSelectCoin,
+  onOpenScreener
 }) => {
   const [search, setSearch] = useState('');
   const isLight = theme === 'light';
@@ -86,16 +88,32 @@ export const CoinSelectorSheet: React.FC<CoinSelectorSheetProps> = ({
             </span>
           </div>
 
-          <button
-            onClick={onClose}
-            className={`p-1.5 rounded-full transition ${
-              isLight
-                ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
-                : 'text-slate-400 hover:text-white hover:bg-white/10'
-            }`}
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            {onOpenScreener && (
+              <button
+                onClick={() => {
+                  onClose();
+                  onOpenScreener();
+                }}
+                className="px-2.5 py-1 rounded-xl text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20 hover:bg-purple-500/20 flex items-center gap-1.5 transition active:scale-95"
+                title="Tüm coinleri sinyale göre tara"
+              >
+                <Radar size={13} className="text-purple-400" />
+                <span>Sinyal Radarı</span>
+              </button>
+            )}
+
+            <button
+              onClick={onClose}
+              className={`p-1.5 rounded-full transition ${
+                isLight
+                  ? 'text-slate-500 hover:text-slate-900 hover:bg-slate-100'
+                  : 'text-slate-400 hover:text-white hover:bg-white/10'
+              }`}
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         {/* Search input */}

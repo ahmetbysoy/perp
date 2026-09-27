@@ -18,8 +18,9 @@ export const LiquidityWallsPanel: React.FC<LiquidityWallsPanelProps> = ({
 }) => {
   if (!orderbook) {
     return (
-      <div className="p-8 text-center text-slate-500 text-xs">
-        Orderbook derinlik verisi bekleniyor...
+      <div className="p-12 flex flex-col items-center justify-center gap-3 text-slate-500 text-xs select-none">
+        <div className="w-8 h-8 rounded-full border-2 border-slate-300 border-t-blue-500 animate-spin" />
+        <span className="font-semibold text-slate-400">Orderbook derinlik verisi senkronize ediliyor...</span>
       </div>
     );
   }

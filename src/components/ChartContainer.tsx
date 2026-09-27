@@ -12,7 +12,7 @@ import {
   AreaSeries,
   HistogramSeries
 } from 'lightweight-charts';
-import { Candle, AppSettings, StrategyChain, LevelRay, VLineMarker } from '../types';
+import { Candle, AppSettings, StrategyChain, LevelRay, VLineMarker, OrderbookData } from '../types';
 import { fmtPrice, binarySearchBar } from '../services/dataFeed';
 
 interface ChartContainerProps {
@@ -22,6 +22,7 @@ interface ChartContainerProps {
   strategyChains: StrategyChain[];
   manualLevels: LevelRay[];
   manualVLines: VLineMarker[];
+  orderbook?: OrderbookData | null;
   settings: AppSettings;
   precision: number;
   onCrosshairMove?: (bar: Candle | null) => void;
@@ -38,6 +39,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
   strategyChains,
   manualLevels,
   manualVLines,
+  orderbook,
   settings,
   precision,
   onCrosshairMove,
@@ -66,6 +68,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     strategyChains,
     manualLevels,
     manualVLines,
+    orderbook,
     settings,
     precision
   });
@@ -76,6 +79,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     strategyChains,
     manualLevels,
     manualVLines,
+    orderbook,
     settings,
     precision
   };
@@ -124,14 +128,55 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, width, height);
 
+    // 0. Liquidity Heatmap & DOM Ladder (Bookmap style depth visualization)
+    const { orderbook: curOrderbook } = latestPropsRef.current;
+    if (curSettings.showHeatmap && curOrderbook) {
+      const allLevels = [
+        ...curOrderbook.bids.slice(0, 20).map(([p, q]) => ({ price: p, qty: q, isBid: true })),
+        ...curOrderbook.asks.slice(0, 20).map(([p, q]) => ({ price: p, qty: q, isBid: false }))
+      ];
+      let maxQty = 1;
+      for (const l of allLevels) if (l.qty > maxQty) maxQty = l.qty;
+
+      const ladderW = 46;
+      ctx.save();
+      allLevels.forEach((l) => {
+        const y = candleSeries.priceToCoordinate(l.price);
+        if (y == null || y < 0 || y > height) return;
+
+        const ratio = Math.min(1, l.qty / maxQty);
+        const heatAlpha = Math.min(0.25, Math.max(0.03, ratio * 0.25));
+
+        // Horizontal Heatmap glow band across chart
+        ctx.fillStyle = l.isBid ? `rgba(8, 153, 129, ${heatAlpha})` : `rgba(242, 54, 69, ${heatAlpha})`;
+        ctx.fillRect(0, y - 1, width - ladderW - 4, 2);
+
+        // Right-hand DOM ladder bar
+        const barW = Math.max(2, Math.round(ratio * (ladderW - 6)));
+        ctx.fillStyle = l.isBid ? 'rgba(8, 153, 129, 0.75)' : 'rgba(242, 54, 69, 0.75)';
+        ctx.fillRect(width - barW, y - 1, barW, 2.5);
+      });
+      ctx.restore();
+    }
+
     const timeScale = chart.timeScale();
 
-    // Helper: draw single vertical marker line
+    // Helper: draw single vertical marker line with laser glow and safeTop margin
     const drawVLine = (time: number, color: string, lineWidth: number = 2, labelText?: string) => {
-      const x = timeScale.timeToCoordinate(time as unknown as Time);
-      if (x == null || x < 0 || x > width) return null;
+      const rawX = timeScale.timeToCoordinate(time as unknown as Time);
+      if (rawX == null || rawX < 0 || rawX > width) return null;
+      const x = Math.round(rawX) - 0.5; // pixel-perfect crispness
 
       ctx.save();
+      // Glow laser effect
+      if (isDark) {
+        ctx.shadowColor = color.startsWith('#') ? `${color}88` : color;
+        ctx.shadowBlur = 6;
+      } else {
+        ctx.shadowColor = 'rgba(0,0,0,0.15)';
+        ctx.shadowBlur = 2;
+      }
+
       ctx.strokeStyle = color;
       ctx.lineWidth = lineWidth;
       ctx.beginPath();
@@ -145,13 +190,18 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         let tagX = x + 3;
         if (tagX + tw + 10 > width) tagX = x - tw - 12;
 
+        const safeTop = 26; // Safe margin below header badges
         ctx.fillStyle = color;
+        ctx.shadowColor = isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.2)';
+        ctx.shadowBlur = 4;
         ctx.beginPath();
-        ctx.roundRect ? ctx.roundRect(tagX, 8, tw + 8, 16, 4) : ctx.rect(tagX, 8, tw + 8, 16);
+        ctx.roundRect ? ctx.roundRect(tagX, safeTop, tw + 8, 16, 4) : ctx.rect(tagX, safeTop, tw + 8, 16);
         ctx.fill();
 
+        // High contrast text inside tag badge
+        ctx.shadowBlur = 0;
         ctx.fillStyle = '#ffffff';
-        ctx.fillText(labelText, tagX + 4, 20);
+        ctx.fillText(labelText, tagX + 4, safeTop + 12);
       }
       ctx.restore();
       return x;
@@ -291,7 +341,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
 
     // Collision Resolution Algorithm for right-side price tags
     calculatedRays.sort((a, b) => a.y - b.y);
-    const minSpacing = 19;
+    const minSpacing = 23;
     for (let i = 1; i < calculatedRays.length; i++) {
       const prev = calculatedRays[i - 1];
       const curr = calculatedRays[i];
@@ -300,15 +350,19 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       }
     }
 
-    // Draw the rays and labels
+    // Draw the rays and labels with glow and sub-pixel alignment
+    const priceScaleWidth = 58; // Standard right-hand price scale width in Lightweight Charts
     calculatedRays.forEach((item) => {
-      const { ray, y, startX, tagY, tagText, tagWidth } = item;
-      const endX = Math.max(startX, width - tagWidth);
+      const { ray, y: rawY, startX: rawStartX, tagY, tagText, tagWidth } = item;
+      const y = Math.round(rawY) - 0.5; // sub-pixel alignment for razor-sharp edge
+      const startX = Math.round(rawStartX);
+      const rightLimit = width - priceScaleWidth;
+      const endX = Math.max(startX, rightLimit - tagWidth - 4);
 
       // Backing definition stroke for crisp contrast against candles
       ctx.save();
-      ctx.strokeStyle = isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.7)';
-      ctx.lineWidth = ray.width + 1.5;
+      ctx.strokeStyle = isDark ? 'rgba(0,0,0,0.65)' : 'rgba(255,255,255,0.85)';
+      ctx.lineWidth = ray.width + 2;
       ctx.beginPath();
       ctx.moveTo(startX, y);
       ctx.lineTo(endX, y);
@@ -316,6 +370,15 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       ctx.restore();
 
       ctx.save();
+      // Glow (luminous halo) effect
+      if (isDark) {
+        ctx.shadowColor = ray.color.startsWith('#') ? `${ray.color}99` : ray.color;
+        ctx.shadowBlur = 7;
+      } else {
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.22)';
+        ctx.shadowBlur = 3;
+      }
+
       ctx.strokeStyle = ray.color;
       ctx.lineWidth = ray.width;
       if (ray.dash && ray.dash.length) {
@@ -334,13 +397,13 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
       if (curSettings.strategyShowDots) {
         ctx.fillStyle = ray.color;
         ctx.beginPath();
-        ctx.arc(startX, y, 3, 0, Math.PI * 2);
+        ctx.arc(startX, y, 3.5, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // Right price tag
+      // Right price tag (docked neatly right before the price scale, zero overlap)
       if (curSettings.strategyShowTags && tagWidth > 0) {
-        const boxX = width - tagWidth;
+        const boxX = rightLimit - tagWidth - 4;
         const boxY = tagY - 9;
 
         // Connecting stroke if tag was adjusted due to collision
@@ -356,9 +419,11 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         }
 
         ctx.fillStyle = ray.color;
+        ctx.shadowColor = isDark ? 'rgba(0,0,0,0.6)' : 'rgba(0,0,0,0.15)';
+        ctx.shadowBlur = 4;
         ctx.beginPath();
         ctx.roundRect
-          ? ctx.roundRect(boxX, boxY, tagWidth, 18, [4, 0, 0, 4])
+          ? ctx.roundRect(boxX, boxY, tagWidth, 18, 4)
           : ctx.rect(boxX, boxY, tagWidth, 18);
         ctx.fill();
 
@@ -368,6 +433,7 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
           ray.color === '#ffffff' ||
           ray.color === '#f1f5f9' ||
           ray.color.toLowerCase() === '#fff';
+        ctx.shadowBlur = 0;
         ctx.fillStyle = isBrightTag ? '#0f172a' : '#ffffff';
         ctx.fillText(tagText, boxX + 6, tagY + 4);
       }
@@ -391,29 +457,61 @@ export const ChartContainer: React.FC<ChartContainerProps> = ({
         }
       });
 
-      // TP Markers on chart
+      // TP Markers on chart with Emerald Luminous Glow & Crisp Border
       if (curSettings.strategyShowTp) {
         recentChains.forEach((ch) => {
           if (ch.tpBar >= 0 && curBars[ch.tpBar]) {
             const bTp = curBars[ch.tpBar];
-            const x = timeScale.timeToCoordinate(bTp.time as unknown as Time);
-            const y = ch.tpPrice != null ? candleSeries.priceToCoordinate(ch.tpPrice) : null;
-            if (x != null && y != null) {
+            const rawX = timeScale.timeToCoordinate(bTp.time as unknown as Time);
+            const rawY = ch.tpPrice != null ? candleSeries.priceToCoordinate(ch.tpPrice) : null;
+            if (rawX != null && rawY != null) {
+              const x = Math.round(rawX);
+              const y = Math.round(rawY);
+              const tpColor = curSettings.strategyTpColor || '#089981';
+
               ctx.save();
-              ctx.fillStyle = curSettings.strategyTpColor || '#089981';
+              // Luminous Emerald Glow for TP hit
+              if (isDark) {
+                ctx.shadowColor = 'rgba(8, 153, 129, 0.75)';
+                ctx.shadowBlur = 10;
+              } else {
+                ctx.shadowColor = 'rgba(8, 153, 129, 0.35)';
+                ctx.shadowBlur = 4;
+              }
+
+              // Outer pulse ring / halo
+              ctx.fillStyle = isDark ? 'rgba(8, 153, 129, 0.25)' : 'rgba(8, 153, 129, 0.15)';
+              ctx.beginPath();
+              ctx.arc(x, y, 9, 0, Math.PI * 2);
+              ctx.fill();
+
+              // Core center circle
+              ctx.fillStyle = tpColor;
               ctx.beginPath();
               ctx.arc(x, y, 5, 0, Math.PI * 2);
               ctx.fill();
 
+              // Badge Pill
               ctx.font = 'bold 10px "JetBrains Mono", monospace';
               const text = `TP${ch.id} ✓`;
               const tw = ctx.measureText(text).width;
-              ctx.fillStyle = curSettings.strategyTpColor || '#089981';
+              const badgeX = x - tw / 2 - 5;
+              const badgeY = y - 26;
+
+              // Border definition
+              ctx.strokeStyle = isDark ? 'rgba(255,255,255,0.3)' : 'rgba(0,0,0,0.15)';
+              ctx.lineWidth = 1;
+              ctx.fillStyle = tpColor;
               ctx.beginPath();
-              ctx.roundRect ? ctx.roundRect(x - tw / 2 - 4, y - 24, tw + 8, 16, 4) : ctx.rect(x - tw / 2 - 4, y - 24, tw + 8, 16);
+              ctx.roundRect
+                ? ctx.roundRect(badgeX, badgeY, tw + 10, 17, 5)
+                : ctx.rect(badgeX, badgeY, tw + 10, 17);
               ctx.fill();
+              ctx.stroke();
+
+              ctx.shadowBlur = 0;
               ctx.fillStyle = '#ffffff';
-              ctx.fillText(text, x - tw / 2, y - 12);
+              ctx.fillText(text, x - tw / 2, y - 13);
               ctx.restore();
             }
           }

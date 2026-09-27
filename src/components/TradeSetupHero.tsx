@@ -62,7 +62,7 @@ export const TradeSetupHero: React.FC<TradeSetupHeroProps> = ({
 
         <div className="text-right">
           <span className="text-[10px] text-slate-400 font-medium block">Beklenen Kâr</span>
-          <span className="font-mono text-sm font-black text-emerald-500">
+          <span className="font-sans font-extrabold text-sm tracking-tight text-emerald-500">
             +%{setup.expectedPnlPct}
           </span>
         </div>
